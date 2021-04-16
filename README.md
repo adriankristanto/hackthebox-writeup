@@ -1,5 +1,5 @@
 # Machines
 
-| Name | OS | User | Root |
-| --- | --- | --- | --- |
-| Test | Test | Test | Test | 
+| No. | Name | OS | User | Root |
+| --- | --- | --- | --- | --- |
+| Test | Test | Test | Test | Test | 
