@@ -1,5 +1,5 @@
 # Machines
 
-| No. | Name | OS | User | Root |
-| --- | --- | --- | --- | --- |
-| 1 | <a href="Delivery">Delivery</a> | Linux | Owned | Owned | 
+| No. | Name | OS | Difficulty | User | Root |
+| --- | --- | --- | --- | --- | --- |
+| 1 | <a href="Delivery">Delivery</a> | Linux | Easy | Owned | Owned | 
