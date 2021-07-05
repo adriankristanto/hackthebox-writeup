@@ -18,7 +18,7 @@
 - User
   - [Looking for credentials in Wordpress configuration file](#looking-for-credentials-in-wordpress-configuration-file)
   - [Getting the User Flag](#getting-the-user-flag)
-- ## Root
+- Root
   - [`enableSSH.sh`](#enablesshsh)
   - [Exploiting Race Condition Vulnerability](#exploiting-race-condition-vulnerability)
   - [Getting the Root Flag](#getting-the-root-flag)
