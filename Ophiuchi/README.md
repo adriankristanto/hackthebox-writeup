@@ -11,6 +11,10 @@
 
 - Foothold
   - [Network Scanning](#network-scanning)
+  - [Web Application Enumeration](#web-application-enumeration)
+  - [SnakeYAML Library](#snakeyaml-library)
+  - [SnakeYAML Deserialization Vulnerability](#snakeyaml-deserialization-vulnerability)
+  - [Getting Initial Foothold](#getting-initial-foothold)
 - User
 - Root
 
@@ -46,7 +50,7 @@ OS and Service detection performed. Please report any incorrect results at https
 Nmap done: 1 IP address (1 host up) scanned in 16.60 seconds
 ```
 
-## Web Application Enumeration
+### Web Application Enumeration
 
 There is a Apache Tomcat webserver running on port 8080 on the remote machine. Let's check out the web application running on it.
 
@@ -59,6 +63,8 @@ Let's try to input a valid YAML into the text area.
 and click on the **PARSE** button.
 
 ![feature disabled](images/2.png)
+
+### SnakeYAML Library
 
 Although the feature seems to be disabled due to security reason, let's keep on testing the web app since there is no other open ports. We can keep testing the app manually or using tools, such as [`wfuzz`](https://github.com/xmendez/wfuzz), which we will use in this scenario.
 
@@ -89,6 +95,8 @@ Trying to replicate the error by manually inputting one of the bad characters, s
 ![internal server error](images/5.png)
 
 Now, we know that snakeyaml is running on the server. Let's do some research on this library.
+
+### SnakeYAML Deserialization Vulnerability
 
 A quick Google search leads us to [this article](https://swapneildash.medium.com/snakeyaml-deserilization-exploited-b4a2c5ac0858), which shows us that snakeyaml library has a deserialization vulnerability and how to exploit it.
 
@@ -137,6 +145,8 @@ Serving HTTP on 0.0.0.0 port 9999 (http://0.0.0.0:9999/) ...
 ```
 
 As explained earlier, ScriptEngineManager makes a request to the attacker ip address and asks for ScriptEngineFactory implementation with a specific directory structure. Since we still don't have the implementation, our server returns 404.
+
+### Getting Initial Foothold
 
 [This GitHub repository](https://github.com/artsploit/yaml-payload) provides a template that we can easily use to exploit the vulnerability. It has the directory structure that we want and an initial implementation of ScriptEngineFactory. Let's clone it.
 
